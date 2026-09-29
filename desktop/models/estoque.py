@@ -1,0 +1,440 @@
+#Editado por Júlia em 02/06/2026 as 16h46
+
+from datetime import datetime
+from core.crud_base import CrudBase
+from core.database import Database
+from core.validator import Validator
+from core.database import Database
+import base64
+
+
+#-----> Classe: Estoque
+
+class Estoque(CrudBase):
+    #Definição da tabela e campos
+    table = "estoque"
+    fields = [
+        "estoque_quantidade",
+        "produto_id"]
+
+    #Definição dos valores para cada campo
+    def __init__(self, estoque_quantidade, produto_id=0):
+        self.estoque_quantidade = estoque_quantidade
+        self.produto_id = produto_id
+
+
+    #Função para validar os campos da tabela 
+    def validate(self):
+        erros = []
+
+        validacoes = [
+            #quantidade
+            Validator.validar_quantidade(self.estoque_quantidade, "estoque_quantidade")
+        ]
+        
+        #Passa em cada item da lista com os retornos das validações
+        for itens in validacoes:
+            #Verifica se o retorno é Falso
+            if not itens['valida']:
+                #adiciona em uma lista todas as mensagens de erro vindas das validações
+                erros.append(itens["mensagem"])
+
+        #Retorna a lista com todas as mensagens de erro
+        return erros
+
+
+######################################################################################
+#---> Início: Deletar produto e estoque
+
+    @classmethod
+    def preparar_imagens(cls, produtos):
+
+        for produto in produtos:
+
+            produto["imagem_base64"] = None
+
+            if produto.get("imagem_blob"):
+                produto["imagem_base64"] = base64.b64encode(
+                    produto["imagem_blob"]
+                ).decode("utf-8")
+
+        return produtos
+
+    @classmethod #Define um método da classe
+
+    def delete_by_produto(cls, id): #Define uma função
+
+        #Conecta com o banco de dados
+        conexao = Database.connect()
+
+        #Ativa o cursor para selecionar linhas do banco de dados
+        cursor = conexao.cursor()
+
+        #Inicia uma tentativa de deletar
+        try:
+            sql = "DELETE FROM estoque WHERE produto_id = %s" #Define o comando SQL que excluirá o estoque
+            cursor.execute(sql, (id,)) #Executa o comando
+            conexao.commit() #Atualiza
+            return cursor.rowcount #Retorna a nova contagem de linhas 
+
+        except Exception: #Erro
+            conexao.rollback() #Retorna o processo
+            raise #Limpa as alterações
+
+        finally:
+            cursor.close() #Fecha o cursor
+            conexao.close() #Encerra a conexão
+
+#---> Fim: Deletar produto e estoque
+######################################################################################
+
+
+######################################################################################
+#---> Início: Listagem de estoque
+
+    @classmethod #Define um método da classe
+    def card_estoque(cls): #Define uma função
+
+        #Conecta com o banco de dados
+        conexao = Database.connect()
+
+        #Ativa o cursor para selecionar linhas do banco de dados
+        cursor = conexao.cursor(dictionary=True)
+
+        #Inicia uma tentativa de listar
+        try:
+            #Define o comando SQL que fará a seleção dos produtos
+            sql = "SELECT e.estoque_quantidade,p.* FROM estoque AS e INNER JOIN produto AS p ON p.id = e.produto_id order by p.id DESC" 
+
+            cursor.execute(sql) #Executa o comando
+
+
+            produtos = cursor.fetchall()
+
+            return cls.preparar_imagens(produtos) #Retorna a seleção dos produtos em estoque
+           
+
+        finally:
+            cursor.close() #Fecha o cursor
+            conexao.close() #Encerra a conexão
+
+#---> Fim: Listagem de estoque
+######################################################################################
+
+##Celular
+    @classmethod
+    def produtos_mobile(cls):
+        conexao = Database.connect()
+        cursor = conexao.cursor(dictionary=True)
+
+        try:
+            sql = """
+                SELECT
+                    e.estoque_quantidade,
+                    p.id,
+                    p.produto_nome,
+                    p.produto_descricao,
+                    p.produto_categoria,
+                    p.produto_quantidade_minima,
+                    p.produto_preco_custo,
+                    p.produto_preco_venda,
+                    p.produto_peso,
+                    p.produto_localizacao,
+                    p.imagem_nome,
+                    p.imagem_tipo,
+                    p.imagem_blob
+                FROM estoque AS e
+                INNER JOIN produto AS p
+                    ON p.id = e.produto_id
+                ORDER BY p.id DESC
+            """
+
+            cursor.execute(sql)
+            produtos = cursor.fetchall()
+
+            for produto in produtos:
+
+                if produto["imagem_blob"]:
+                    produto["imagem_base64"] = base64.b64encode(
+                        produto["imagem_blob"]
+                    ).decode("utf-8")
+
+                    produto["possui_imagem"] = True
+                else:
+                    produto["imagem_base64"] = None
+                    produto["possui_imagem"] = False
+
+                # Remove o BLOB para não tentar enviar bytes no JSON
+                produto.pop("imagem_blob", None)
+
+            return produtos
+
+        finally:
+            cursor.close()
+            conexao.close()
+
+######################################################################################
+#---> Início: Filtros de ordenação
+
+    @classmethod #Define um método da classe
+    def card_estoque_nome(cls): #Define uma função
+
+        #Conecta com o banco de dados
+        conexao = Database.connect()
+
+        #Ativa o cursor para selecionar linhas do banco de dados
+        cursor = conexao.cursor(dictionary=True)
+
+        #Inicia uma tentativa de listar
+        try:
+            #Define o comando SQL que fará a seleção dos produtos
+            sql = "SELECT e.estoque_quantidade,p.* FROM estoque AS e INNER JOIN produto AS p ON p.id = e.produto_id order by produto_nome ASC"
+
+            cursor.execute(sql)#Executa o comando
+            produtos = cursor.fetchall()
+
+            return cls.preparar_imagens(produtos)
+             #Retorna a seleção dos produtos
+
+        finally:
+            cursor.close() #Fecha o cursor
+            conexao.close() #Encerra a conexão
+    
+    @classmethod #Define um método da classe
+    def card_estoque_maior(cls): #Define uma função
+
+        #Conecta com o banco de dados
+        conexao = Database.connect()
+
+        #Ativa o cursor para selecionar linhas do banco de dados
+        cursor = conexao.cursor(dictionary=True)
+
+        #Inicia uma tentativa de listar
+        try:
+            #Define o comando SQL que fará a seleção dos produtos
+            sql = "SELECT e.estoque_quantidade,p.* FROM estoque AS e INNER JOIN produto AS p ON p.id = e.produto_id order by estoque_quantidade DESC"
+
+            cursor.execute(sql) #Executa o comando
+            produtos = cursor.fetchall()
+
+            return cls.preparar_imagens(produtos)
+            #Retorna a seleção dos produtos
+
+        finally:
+            cursor.close() #Fecha o cursor
+            conexao.close() #Encerra a conexão
+
+    @classmethod #Define um método da classe
+    def card_estoque_menor(cls): #Define uma função
+
+        #Conecta com o banco de dados
+        conexao = Database.connect()
+
+        #Ativa o cursor para selecionar linhas do banco de dados
+        cursor = conexao.cursor(dictionary=True)
+
+        #Inicia uma tentativa de listar
+        try:
+            #Define o comando SQL que fará a seleção dos produtos
+            sql = "SELECT e.estoque_quantidade,p.* FROM estoque AS e INNER JOIN produto AS p ON p.id = e.produto_id order by estoque_quantidade ASC"
+
+            cursor.execute(sql) #Executa o comando
+            produtos = cursor.fetchall()
+
+            return cls.preparar_imagens(produtos)
+             #Retorna a seleção dos produtos
+
+        finally:
+            cursor.close() #Fecha o cursor
+            conexao.close() #Encerra a conexão
+
+    @classmethod #Define um método da classe
+    def card_estoque_preco_maior(cls): #Define uma função
+
+        #Conecta com o banco de dados
+        conexao = Database.connect()
+
+        #Ativa o cursor para selecionar linhas do banco de dados
+        cursor = conexao.cursor(dictionary=True)
+
+        #Inicia uma tentativa de listar
+        try:
+            #Define o comando SQL que fará a seleção dos produtos
+            sql = "SELECT e.estoque_quantidade,p.* FROM estoque AS e INNER JOIN produto AS p ON p.id = e.produto_id order by produto_preco_venda DESC"
+
+            cursor.execute(sql) #Executa o comando
+            produtos = cursor.fetchall()
+
+            return cls.preparar_imagens(produtos)
+             #Retorna a seleção dos produtos
+
+        finally:
+            cursor.close() #Fecha o cursor
+            conexao.close() #Encerra a conexão
+    
+    @classmethod #Define um método da classe
+    def card_estoque_preco_menor(cls): #Define uma função
+
+        #Conecta com o banco de dados
+        conexao = Database.connect()
+
+        #Ativa o cursor para selecionar linhas do banco de dados
+        cursor = conexao.cursor(dictionary=True)
+
+        #Inicia uma tentativa de listar
+        try:
+            #Define o comando SQL que fará a seleção dos produtos
+            sql = "SELECT e.estoque_quantidade,p.* FROM estoque AS e INNER JOIN produto AS p ON p.id = e.produto_id order by produto_preco_venda ASC"
+
+            cursor.execute(sql) #Executa o comando
+            produtos = cursor.fetchall()
+
+            return cls.preparar_imagens(produtos)
+             #Retorna a seleção dos produtos
+
+        finally:
+            cursor.close() #Fecha o cursor
+            conexao.close() #Encerra a conexão
+
+
+#---> Fim: Filtros de ordenação
+######################################################################################
+
+
+######################################################################################
+#---> Início: Produtos com estoque baixo
+
+    @classmethod #Define um método da classe
+    def estoque_baixo(cls): #Define uma função
+
+        #Conecta com o banco de dados
+        conexao = Database.connect()
+
+        #Ativa o cursor para selecionar linhas do banco de dados
+        cursor = conexao.cursor(dictionary=True)
+
+        #Inicia uma tentativa de listar
+        try:
+            #Define o comando SQL que fará a seleção dos produtos
+            sql = "SELECT e.estoque_quantidade,p.produto_nome,p.produto_quantidade_minima FROM estoque AS e INNER JOIN produto AS p ON p.id = e.produto_id WHERE e.estoque_quantidade <= p.produto_quantidade_minima * 1.1;"
+
+            cursor.execute(sql) #Executa o comando
+            produtos = cursor.fetchall()
+
+            return cls.preparar_imagens(produtos)
+            #Retorna a seleção dos produtos
+
+        finally:
+            cursor.close() #Fecha o cursor
+            conexao.close() #Encerra a conexão
+
+#---> Fim: Produtos com estoque baixo
+######################################################################################
+
+
+######################################################################################
+#---> Início: Soma dos estoques de todos os produtos
+
+    @classmethod #Define um método da classe
+    def estoque_total(cls): #Define uma função
+
+        #Conecta com o banco de dados
+        conexao = Database.connect()
+
+        #Ativa o cursor para selecionar linhas do banco de dados
+        cursor = conexao.cursor(dictionary=True)
+
+        #Inicia uma tentativa de listar
+        try:
+            #Define o comando SQL que fará a seleção dos produtos
+            sql = "SELECT SUM(estoque_quantidade) as quantidade_total FROM estoque"
+
+            cursor.execute(sql) #Executa o comando
+            return cursor.fetchone() #Retorna a seleção dos produtos
+
+        finally:
+            cursor.close() #Fecha o cursor
+            conexao.close() #Encerra a conexão
+
+#---> Fim: Soma dos estoques de todos os produtos
+######################################################################################
+
+
+######################################################################################
+#---> Início: Pesquisa de produtos
+
+
+    @classmethod #Define um método da classe
+    def card_estoque_pesquisa(cls, chave_pesquisa): #Define uma função
+
+        #Conecta com o banco de dados
+        conexao = Database.connect()
+
+        #Ativa o cursor para selecionar linhas do banco de dados
+        cursor = conexao.cursor(dictionary=True)
+
+        #Inicia uma tentativa de listar
+        try:
+            #Monta uma busca com a chave de pesquisa
+            busca = f"%{chave_pesquisa['chave_pesquisa']}%"
+
+            #Define o comando SQL que fará a seleção dos produtos
+            sql = f"SELECT e.estoque_quantidade, p.* FROM estoque AS e INNER JOIN produto AS p ON p.id = e.produto_id WHERE p.produto_nome LIKE %s order by p.id"
+
+            cursor.execute(sql, (busca,)) #Executa o comando
+            produtos = cursor.fetchall()
+
+            return cls.preparar_imagens(produtos) #Retorna a seleção dos produtos
+        
+        except Exception as e: #Erro
+            raise #Limpa
+
+        finally:
+            cursor.close() #Fecha o cursor
+            conexao.close() #Encerra a conexão
+
+#---> Fim: Pesquisa de produtos
+######################################################################################
+
+
+######################################################################################
+#---> Início: historico movimentos
+
+
+    @classmethod #Define um método da classe
+    def historico(cls): #Define uma função
+
+        #Conecta com o banco de dados
+        conexao = Database.connect()
+
+        #Ativa o cursor para selecionar linhas do banco de dados
+        cursor = conexao.cursor(dictionary=True)
+
+        #Inicia uma tentativa de listar
+        try:
+            
+            #Define o comando SQL que fará a seleção dos produtos
+            sql = '''select datahora_movimentacao_entrada as data_movimento,
+                    data_pedido_entrada as data_entrada,
+                    status_pedido_entrada as status,
+                    detalhe_entrada_quantidade as quantidade,
+                    pr.produto_descricao as descricao
+                    from movimentacao_entrada me
+                    join pedido_entrada pe on pe.id = me.detalhe_entrada_id
+                    join detalhe_entrada de on de.id = me.detalhe_entrada_id
+                    join produto as pr on pr.id = de.produto_id'''
+
+            cursor.execute(sql) #Executa o comando
+            movimentos = cursor.fetchall()
+
+            return  movimentos #Retorna a seleção dos produtos
+        
+        except Exception as e: #Erro
+            raise #Limpa
+
+        finally:
+            cursor.close() #Fecha o cursor
+            conexao.close() #Encerra a conexão
+
+#---> Fim: Pesquisa de produtos
+######################################################################################

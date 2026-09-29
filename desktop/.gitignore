@@ -1,0 +1,9 @@
+# Ignorar ambiente virtual
+ambiente_voiture/
+
+# Ignorar arquivos Python temporários
+*.pyc
+__pycache__/
+
+# Ignorar dados confidenciais
+.env
