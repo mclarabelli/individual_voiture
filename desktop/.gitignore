@@ -1,9 +1,6 @@
-# Ignorar ambiente virtual
+# Created by venv; see https://docs.python.org/3/library/venv.html
+*
 ambiente_voiture/
-
-# Ignorar arquivos Python temporários
 *.pyc
-__pycache__/
-
-# Ignorar dados confidenciais
+*__pycache__/
 .env
