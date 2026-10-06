@@ -156,19 +156,7 @@ export default function ProductsScreen() {
             </View>
           )}
 
-          {/* FAVORITO */}
-
-          <TouchableOpacity
-            style={styles.favoriteButton}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name="heart-outline"
-              size={19}
-              color="#64748B"
-            />
-          </TouchableOpacity>
-
+        
           {/* STATUS */}
 
           <View
@@ -728,29 +716,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
 
     marginTop: 5,
-  },
-
-  // ======================================================
-  // FAVORITO
-  // ======================================================
-
-  favoriteButton: {
-    position: 'absolute',
-
-    top: 9,
-    right: 9,
-
-    width: 31,
-    height: 31,
-
-    borderRadius: 16,
-
-    backgroundColor: 'rgba(255,255,255,0.94)',
-
-    justifyContent: 'center',
-    alignItems: 'center',
-
-    elevation: 2,
   },
 
   // ======================================================

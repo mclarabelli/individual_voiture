@@ -7,6 +7,7 @@ import {
   FlatList,
   TextInput,
   TouchableOpacity,
+  RefreshControl,
 } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
@@ -18,12 +19,11 @@ import api from '../src/services/api';
 export default function HistoryScreen() {
   const [search, setSearch] = useState('');
   const [history, setHistory] = useState([]);
+  const [refreshing, setRefreshing] = useState(false);
 
   const loadHistory = async () => {
     try {
-      const response = await api.get('/historico');
-
-      console.log('HISTÓRICO:', response.data);
+      const response = await api.get('/api/historico');
 
       setHistory(
         Array.isArray(response.data)
@@ -33,11 +33,17 @@ export default function HistoryScreen() {
     } catch (error) {
       console.log(
         'Erro ao carregar histórico:',
-        error
+        error.response?.data || error
       );
 
       setHistory([]);
     }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadHistory();
+    setRefreshing(false);
   };
 
   useFocusEffect(
@@ -171,6 +177,12 @@ export default function HistoryScreen() {
         contentContainerStyle={{
           paddingBottom: 40,
         }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+          />
+        }
 
         renderItem={({ item }) => {
 
@@ -303,6 +315,12 @@ export default function HistoryScreen() {
 
                 </View>
 
+                {item?.partner ? (
+                  <Text style={[styles.hour, { marginTop: 6 }]}>
+                    {isEntry ? 'Fornecedor' : 'Cliente'}: {item.partner}
+                  </Text>
+                ) : null}
+
               </View>
 
             </View>
@@ -336,6 +354,7 @@ export default function HistoryScreen() {
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
 
