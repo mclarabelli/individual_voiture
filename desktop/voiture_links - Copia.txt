@@ -1,5 +1,0 @@
-GitHub do grupo
-https://github.com/voituregestaodeestoque/projeto_voiture.git
-
-Trello
-https://trello.com/b/8VDswvfe/voiture-gestao-de-estoque
