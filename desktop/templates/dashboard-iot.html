@@ -1,0 +1,278 @@
+{% extends 'base.html' %}
+
+{% block conteudo %}
+<script src="https://cdn.canvasjs.com/canvasjs.min.js"></script>
+<style>
+    /* Tudo escopado em .dashboard-iot para não afetar o base.html */
+    .dashboard-iot { max-width: 1400px; margin: auto; padding: 25px; font-family: Arial, Helvetica, sans-serif; color: #0f172a; }
+    .dashboard-iot *, .dashboard-iot *::before, .dashboard-iot *::after { box-sizing: border-box; }
+    .dashboard-iot .status { display: flex; align-items: center; gap: 8px; }
+    .dashboard-iot .status-ponto { width: 12px; height: 12px; border-radius: 50%; background: #22c55e; flex: 0 0 auto; }
+    .dashboard-iot .status-ponto.offline { background: #ef4444; }
+    .dashboard-iot .kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; margin-bottom: 20px; }
+    .dashboard-iot .kpi, .dashboard-iot .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0, 0, 0, .06); }
+    .dashboard-iot .kpi-titulo { color: #64748b; font-size: 14px; margin-bottom: 10px; }
+    .dashboard-iot .kpi-valor { font-size: 28px; font-weight: bold; overflow-wrap: anywhere; }
+    .dashboard-iot .azul { color: #2563eb; }
+    .dashboard-iot .verde { color: #16a34a; }
+    .dashboard-iot .laranja { color: #ea580c; }
+    .dashboard-iot .cinza { color: #64748b; }
+    .dashboard-iot .sensores { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin-bottom: 20px; }
+    .dashboard-iot .card h2 { margin-top: 0; font-size: 18px; }
+    .dashboard-iot .descricao { color: #64748b; font-size: 14px; line-height: 1.5; }
+    .dashboard-iot .estado { display: inline-block; padding: 6px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; background: #e2e8f0; color: #334155; }
+    .dashboard-iot .estado.ok { background: #dcfce7; color: #166534; }
+    .dashboard-iot .estado.alerta { background: #fef3c7; color: #92400e; }
+    .dashboard-iot .estado.erro { background: #fee2e2; color: #991b1b; }
+    .dashboard-iot .grafico { height: 300px; width: 100%; }
+    .dashboard-iot .tabela-wrapper { overflow-x: auto; }
+    .dashboard-iot table { width: 100%; border-collapse: collapse; min-width: 620px; }
+    .dashboard-iot th, .dashboard-iot td { padding: 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+    .dashboard-iot th { background: #f8fafc; }
+    .dashboard-iot .vazio { text-align: center; color: #64748b; padding: 22px; }
+    .dashboard-iot .tag-mov { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+    .dashboard-iot .tag-mov.entrada { background: #dcfce7; color: #166534; }
+    .dashboard-iot .tag-mov.saida { background: #ffedd5; color: #9a3412; }
+    .dashboard-iot .rodape { text-align: center; color: #64748b; font-size: 12px; padding: 18px 0 4px; }
+    @media (max-width: 850px) {
+        .dashboard-iot .sensores { grid-template-columns: 1fr; }
+        .dashboard-iot .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .dashboard-iot header { align-items: flex-start; flex-direction: column; }
+    }
+    @media (max-width: 500px) {
+        .dashboard-iot { padding: 12px; }
+        .dashboard-iot header { padding: 20px; }
+        .dashboard-iot header h1 { font-size: 23px; }
+        .dashboard-iot .kpis { grid-template-columns: 1fr; }
+        .dashboard-iot .kpi, .dashboard-iot .card { padding: 16px; }
+    }
+</style>
+
+<main class="dashboard-iot">
+    <header class="d-flex justify-content-between mb-4">
+        <div>
+            <h2 class="titulo-pagina" id="titulo-clientes">
+                <i class="bi bi-router-fill" aria-hidden="true"></i>
+                Dashboard IoT
+            </h2>
+            <p class="text-muted mb-0" id="descricao-clientes">
+                Monitoramento do ESP32 (HC-SR04 e MFRC522) a partir do banco voiture_estoque
+            </p>
+        </div>
+        <div class="status" role="status" aria-live="polite">
+            <span id="statusPonto" class="status-ponto offline"></span>
+            <span id="statusTexto">Conectando à API...</span>
+        </div>
+    </header>
+
+    <section class="kpis" aria-label="Resumo do sistema">
+        <div class="kpi">
+            <div class="kpi-titulo">Distância HC-SR04</div>
+            <div id="distancia" class="kpi-valor azul">-- cm</div>
+        </div>
+        <div class="kpi">
+            <div class="kpi-titulo">Presença</div>
+            <div id="presenca" class="kpi-valor cinza">Aguardando</div>
+        </div>
+        <div class="kpi">
+            <div class="kpi-titulo">Leituras MFRC522</div>
+            <div id="totalRFID" class="kpi-valor laranja">0</div>
+        </div>
+    </section>
+
+    <section class="sensores" aria-label="Sensores">
+        <article class="card">
+            <h2>Sensor ultrassônico HC-SR04</h2>
+            <p class="descricao">Últimas 100 leituras gravadas no banco. O limite de presença é definido em <code>LIMITE_PRESENCA_CM</code> no script.</p>
+            <p>Estado: <span id="estadoUltrassonico" class="estado">Aguardando dados</span></p>
+            <p class="descricao">Última atualização: <strong id="horaDistancia">--</strong></p>
+            <div id="graficoDistancia" class="grafico"></div>
+        </article>
+        <article class="card">
+            <h2>Leitor RFID MFRC522</h2>
+            <p class="descricao">Último UID lido e histórico de entradas/saídas. O leitor é considerado ativo se houve leitura nos últimos 60 segundos.</p>
+            <p>Estado: <span id="estadoRFID" class="estado">Aguardando dados</span></p>
+            <p class="descricao">Último UID: <strong id="ultimoUID">Nenhuma leitura</strong></p>
+            <p class="descricao">Última atualização: <strong id="horaRFID">--</strong></p>
+        </article>
+    </section>
+
+    <section class="card">
+        <h2>Histórico de leituras RFID</h2>
+        <div class="tabela-wrapper">
+            <table>
+                <thead>
+                    <tr><th>Data e hora</th><th>Dispositivo</th><th>UID da tag</th><th>Produto</th><th>Movimento</th></tr>
+                </thead>
+                <tbody id="tabelaRFID">
+                    <tr><td class="vazio" colspan="5">Aguardando leituras RFID...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+
+<script>
+    // Mesma origem do Flask: rotas relativas, sem CORS e sem IP fixo.
+    const INTERVALO_MS = 5000;
+    const LIMITE_PRESENCA_CM = 30;
+
+    let graficoDistancia = null;
+    let pontosDistancia = [];
+
+    function formatarData(valor) {
+        if (!valor) return "--";
+        // O Flask devolve "YYYY-MM-DD HH:MM:SS"; troca o espaço por T para o parse funcionar em todos os navegadores.
+        const data = new Date(String(valor).replace(" ", "T"));
+        if (Number.isNaN(data.getTime())) return String(valor);
+        return data.toLocaleString("pt-BR", {
+            day: "2-digit", month: "2-digit", year: "numeric",
+            hour: "2-digit", minute: "2-digit", second: "2-digit"
+        });
+    }
+
+    async function getJSON(caminho) {
+        const resposta = await fetch(caminho, { headers: { "Accept": "application/json" } });
+        if (!resposta.ok) throw new Error(`${caminho}: HTTP ${resposta.status}`);
+        return resposta.json();
+    }
+
+    function definirEstado(id, texto, tipo = "") {
+        const el = document.getElementById(id);
+        el.textContent = texto;
+        el.className = `estado ${tipo}`.trim();
+    }
+
+    // ---------------- HC-SR04 (/api/distancia) ----------------
+    async function buscarUltrassonico() {
+        const leituras = await getJSON("/api/distancia"); // já vem em ordem cronológica
+
+        if (!Array.isArray(leituras) || !leituras.length) {
+            document.getElementById("distancia").textContent = "-- cm";
+            const p = document.getElementById("presenca");
+            p.textContent = "Sem dados";
+            p.className = "kpi-valor cinza";
+            definirEstado("estadoUltrassonico", "Nenhuma leitura no banco", "alerta");
+            return;
+        }
+
+        const ultima = leituras[leituras.length - 1];
+        const valor = Number(ultima.distancia);
+
+        if (Number.isFinite(valor)) {
+            document.getElementById("distancia").textContent = `${valor.toFixed(2)} cm`;
+            const presente = valor > 0 && valor <= LIMITE_PRESENCA_CM;
+            const p = document.getElementById("presenca");
+            p.textContent = presente ? "Detectada" : "Não detectada";
+            p.className = `kpi-valor ${presente ? "verde" : "cinza"}`;
+        }
+        document.getElementById("horaDistancia").textContent = formatarData(ultima.data_hora);
+        definirEstado("estadoUltrassonico", "Recebendo dados", "ok");
+
+        pontosDistancia = leituras
+            .filter(l => l.distancia !== null && Number.isFinite(Number(l.distancia)))
+            .map(l => ({ label: formatarData(l.data_hora), y: Number(l.distancia) }));
+        renderizarGrafico();
+    }
+
+    function renderizarGrafico() {
+        if (!window.CanvasJS) return;
+        if (!graficoDistancia) {
+            graficoDistancia = new CanvasJS.Chart("graficoDistancia", {
+                animationEnabled: false,
+                axisY: { title: "Distância (cm)", includeZero: true },
+                axisX: { labelAngle: -45, interval: Math.max(1, Math.floor(pontosDistancia.length / 8)) },
+                data: [{ type: "line", markerSize: 4, dataPoints: pontosDistancia }]
+            });
+        }
+        graficoDistancia.options.data[0].dataPoints = pontosDistancia;
+        graficoDistancia.render();
+    }
+
+    // ---------------- Resumo RFID (/api/resumo) ----------------
+    async function buscarResumo() {
+        const r = await getJSON("/api/resumo");
+        document.getElementById("totalRFID").textContent = String(r.rfid_total ?? 0);
+        document.getElementById("ultimoUID").textContent = r.rfid_ultimo ?? "Nenhuma leitura";
+
+        if (!r.rfid_ultimo) {
+            definirEstado("estadoRFID", "Aguardando tag", "alerta");
+        } else if (r.leitor_ativo) {
+            definirEstado("estadoRFID", "Leitor ativo", "ok");
+        } else {
+            definirEstado("estadoRFID", "Leitor inativo (sem leitura há mais de 60s)", "alerta");
+        }
+    }
+
+    // ---------------- Histórico RFID (/api/rfid) ----------------
+    async function buscarHistoricoRFID() {
+        const leituras = await getJSON("/api/rfid"); // ordem cronológica
+        const tabela = document.getElementById("tabelaRFID");
+        tabela.replaceChildren();
+
+        if (!Array.isArray(leituras) || !leituras.length) {
+            const linha = document.createElement("tr");
+            const celula = document.createElement("td");
+            celula.colSpan = 5;
+            celula.className = "vazio";
+            celula.textContent = "Nenhuma leitura RFID registrada no banco.";
+            linha.appendChild(celula);
+            tabela.appendChild(linha);
+            document.getElementById("horaRFID").textContent = "--";
+            return;
+        }
+
+        document.getElementById("horaRFID").textContent = formatarData(leituras[leituras.length - 1].data_hora);
+
+        leituras.slice().reverse().forEach(l => {
+            const linha = document.createElement("tr");
+
+            [formatarData(l.data_hora), l.device_id ?? "ESP32", l.rfid_uid ?? "--", l.produto ?? "--"].forEach(valor => {
+                const td = document.createElement("td");
+                td.textContent = String(valor);
+                linha.appendChild(td);
+            });
+
+            const tdMov = document.createElement("td");
+            const badge = document.createElement("span");
+            const mov = String(l.movimento ?? "--");
+            badge.className = `tag-mov ${mov === "ENTRADA" ? "entrada" : mov === "SAIDA" ? "saida" : ""}`.trim();
+            badge.textContent = mov === "SAIDA" ? "SAÍDA" : mov;
+            tdMov.appendChild(badge);
+            linha.appendChild(tdMov);
+
+            tabela.appendChild(linha);
+        });
+    }
+
+    // ---------------- Status geral (/api/status) ----------------
+    async function atualizarDashboard() {
+        const statusTexto = document.getElementById("statusTexto");
+        const statusPonto = document.getElementById("statusPonto");
+
+        const resultados = await Promise.allSettled([
+            getJSON("/api/status"),
+            buscarUltrassonico(),
+            buscarResumo(),
+            buscarHistoricoRFID()
+        ]);
+        const falhas = resultados.filter(r => r.status === "rejected");
+        falhas.forEach(f => console.error(f.reason));
+
+        if (falhas.length === 0) {
+            statusTexto.textContent = "API online";
+            statusPonto.classList.remove("offline");
+        } else if (falhas.length < resultados.length) {
+            statusTexto.textContent = "API parcialmente acessível";
+            statusPonto.classList.add("offline");
+        } else {
+            statusTexto.textContent = "API offline: verifique o servidor Flask";
+            statusPonto.classList.add("offline");
+        }
+    }
+
+    atualizarDashboard();
+    setInterval(atualizarDashboard, INTERVALO_MS);
+    window.addEventListener("resize", () => { if (graficoDistancia) graficoDistancia.render(); });
+</script>
+{% endblock %}
